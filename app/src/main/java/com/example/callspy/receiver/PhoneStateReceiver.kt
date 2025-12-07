@@ -3,10 +3,10 @@ package com.example.callspy.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.content.ContextCompat
-import android.content.pm.PackageManager
 import com.example.callspy.service.CallRecordingService
 
 class PhoneStateReceiver : BroadcastReceiver() {
@@ -56,8 +56,8 @@ class PhoneStateReceiver : BroadcastReceiver() {
         val processOutgoingCallsPermission = ContextCompat.checkSelfPermission(context, android.Manifest.permission.PROCESS_OUTGOING_CALLS)
 
         return recordAudioPermission == PackageManager.PERMISSION_GRANTED &&
-                readPhoneStatePermission == PackageManager.PERMISSION_GRANTED &&
-                processOutgoingCallsPermission == PackageManager.PERMISSION_GRANTED
+               readPhoneStatePermission == PackageManager.PERMISSION_GRANTED &&
+               processOutgoingCallsPermission == PackageManager.PERMISSION_GRANTED
     }
 
     private fun startCallRecordingService(context: Context) {
