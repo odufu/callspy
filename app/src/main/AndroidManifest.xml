@@ -25,6 +25,19 @@
     
     <!-- Required for Android 10+ to access phone state -->
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    
+    <!-- Storage permissions for saving recordings -->
+    <!-- For Android 10+, use scoped storage - no permission needed for app-specific directories -->
+    <!-- For Android < 10, we need WRITE_EXTERNAL_STORAGE -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    
+    <!-- For Android 11+ to manage all files access (optional, for broader storage access) -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    
+    <!-- For Android 10+ to use foreground service with microphone -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:allowBackup="true"
@@ -34,6 +47,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CallSpy"
         tools:targetApi="31">
+        
+        <!-- Request MANAGE_EXTERNAL_STORAGE permission for Android 11+ -->
+        <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+            tools:ignore="ScopedStorage" />
 
         <!-- Main Activity -->
         <activity
@@ -58,7 +75,8 @@
             android:name=".service.CallRecordingService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="microphone" />
+            android:foregroundServiceType="microphone"
+            android:permission="android.permission.FOREGROUND_SERVICE" />
 
         <!-- Phone State Receiver for detecting call events -->
         <receiver
@@ -74,7 +92,9 @@
         <service
             android:name=".service.CallAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/accessibility_service_name"
+            android:description="@string/accessibility_service_description">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
