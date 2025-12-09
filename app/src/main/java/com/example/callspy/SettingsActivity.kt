@@ -12,6 +12,9 @@ import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.view.accessibility.AccessibilityManager
+import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -23,6 +26,9 @@ class SettingsActivity : AppCompatActivity() {
             Manifest.permission.PROCESS_OUTGOING_CALLS,
             Manifest.permission.POST_NOTIFICATIONS
         )
+        
+        // Accessibility service class name (must match AndroidManifest)
+        private const val ACCESSIBILITY_SERVICE_CLASS_NAME = "com.example.callspy.service.CallAccessibilityService"
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,19 +55,42 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
     
+    override fun onResume() {
+        super.onResume()
+        // Update status when returning from settings
+        updatePermissionStatus(findViewById(R.id.permissionStatusText))
+    }
+    
     private fun updatePermissionStatus(textView: TextView) {
         val status = StringBuilder()
+        
+        // Check each permission
         REQUIRED_PERMISSIONS.forEach { permission ->
             val granted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-            val permissionName = permission.substringAfterLast('.')
-            status.append("$permissionName: ${if (granted) "✓" else "✗"}\n")
+            val permissionName = getPermissionDisplayName(permission)
+            status.append("$permissionName: ${if (granted) "✅" else "❌"}\n")
         }
         
         // Check accessibility service
         val accessibilityEnabled = isAccessibilityServiceEnabled()
-        status.append("Accessibility Service: ${if (accessibilityEnabled) "✓" else "✗"}\n")
+        status.append("Accessibility Service: ${if (accessibilityEnabled) "✅" else "❌"}\n")
+        
+        // Check if recording service can run in foreground
+        val hasForegroundServicePermission = ContextCompat.checkSelfPermission(this, Manifest.permission.FOREGROUND_SERVICE) == PackageManager.PERMISSION_GRANTED
+        status.append("Foreground Service: ${if (hasForegroundServicePermission) "✅" else "❌"}\n")
         
         textView.text = status.toString()
+    }
+    
+    private fun getPermissionDisplayName(permission: String): String {
+        return when (permission) {
+            Manifest.permission.RECORD_AUDIO -> "Record Audio"
+            Manifest.permission.READ_PHONE_STATE -> "Read Phone State"
+            Manifest.permission.PROCESS_OUTGOING_CALLS -> "Process Outgoing Calls"
+            Manifest.permission.POST_NOTIFICATIONS -> "Post Notifications"
+            Manifest.permission.FOREGROUND_SERVICE -> "Foreground Service"
+            else -> permission.substringAfterLast('.')
+        }
     }
     
     private fun requestPermissions() {
@@ -97,6 +126,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun openAccessibilitySettings() {
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         startActivity(intent)
+        Toast.makeText(this, "Please enable 'CallSpy Accessibility Service' for WhatsApp detection", Toast.LENGTH_LONG).show()
     }
     
     private fun openNotificationSettings() {
@@ -107,7 +137,11 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     private fun isAccessibilityServiceEnabled(): Boolean {
-        // This is a simplified check - in production you'd need to check if your service is enabled
-        return false // Placeholder
+        val accessibilityManager = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = accessibilityManager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        
+        return enabledServices.any { service ->
+            service.id.endsWith(ACCESSIBILITY_SERVICE_CLASS_NAME)
+        }
     }
 }
