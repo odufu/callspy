@@ -1,20 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">CallSpy</string>
-    <string name="app_description">Automatic call recording for WhatsApp and regular calls</string>
-    <string name="settings_title">Settings</string>
-    <string name="permission_status">Permission Status</string>
-    <string name="request_permissions">Request Permissions</string>
-    <string name="open_accessibility_settings">Open Accessibility Settings</string>
-    <string name="open_notification_settings">Open Notification Settings</string>
-    <string name="note_permissions_required">Note: This app requires the following permissions:</string>
-    <string name="permissions_list">• Record Audio
-• Read Phone State
-• Process Outgoing Calls
-• Post Notifications
-• Accessibility Service (for WhatsApp calls)</string>
-    <string name="checking_permissions">Checking permissions...</string>
-    <string name="all_permissions_granted">All permissions already granted</string>
-    <string name="permissions_granted">All permissions granted!</string>
-    <string name="some_permissions_denied">Some permissions were denied</string>
+    <string name="hello_world">Hello World!</string>
+    <string name="accessibility_service_name">CallSpy Accessibility Service</string>
+    <string name="accessibility_service_description">Detects WhatsApp and VoIP calls for automatic recording</string>
 </resources>
