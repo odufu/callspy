@@ -14,6 +14,7 @@ import android.widget.TextView
 import android.widget.Toast
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.view.accessibility.AccessibilityManager
+import android.content.ComponentName
 import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
@@ -27,8 +28,9 @@ class SettingsActivity : AppCompatActivity() {
             Manifest.permission.POST_NOTIFICATIONS
         )
         
-        // Accessibility service class name (must match AndroidManifest)
+        // Accessibility service component name (must match AndroidManifest)
         private const val ACCESSIBILITY_SERVICE_CLASS_NAME = "com.example.callspy.service.CallAccessibilityService"
+        private const val ACCESSIBILITY_SERVICE_PACKAGE_NAME = "com.example.callspy"
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,11 +75,14 @@ class SettingsActivity : AppCompatActivity() {
         
         // Check accessibility service
         val accessibilityEnabled = isAccessibilityServiceEnabled()
-        status.append("Accessibility Service: ${if (accessibilityEnabled) "✅" else "❌"}\n")
+        status.append("Accessibility Service: ${if (accessibilityEnabled) "✅" else "❌"}")
+        if (!accessibilityEnabled) {
+            status.append("\n(WhatsApp/VoIP detection disabled)")
+        }
         
         // Check if recording service can run in foreground
         val hasForegroundServicePermission = ContextCompat.checkSelfPermission(this, Manifest.permission.FOREGROUND_SERVICE) == PackageManager.PERMISSION_GRANTED
-        status.append("Foreground Service: ${if (hasForegroundServicePermission) "✅" else "❌"}\n")
+        status.append("\nForeground Service: ${if (hasForegroundServicePermission) "✅" else "❌"}")
         
         textView.text = status.toString()
     }
@@ -140,8 +145,16 @@ class SettingsActivity : AppCompatActivity() {
         val accessibilityManager = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
         val enabledServices = accessibilityManager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
         
+        // Build the expected component name string
+        val expectedComponentName = ComponentName(
+            ACCESSIBILITY_SERVICE_PACKAGE_NAME,
+            ACCESSIBILITY_SERVICE_CLASS_NAME
+        ).flattenToString()
+        
         return enabledServices.any { service ->
-            service.id.endsWith(ACCESSIBILITY_SERVICE_CLASS_NAME)
+            // Check if the service ID matches our component name
+            service.id.equals(expectedComponentName, ignoreCase = true) ||
+            service.id.contains(ACCESSIBILITY_SERVICE_CLASS_NAME)
         }
     }
 }
