@@ -1,43 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.example.callspy">
-
-    <!-- Required permissions for call recording -->
-    <!-- RECORD_AUDIO: For recording audio -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    
-    <!-- READ_PHONE_STATE: For detecting call state (restricted on Android 10+) -->
-    <!-- Note: This permission is heavily restricted post-Android 10 -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    
-    <!-- PROCESS_OUTGOING_CALLS: For detecting outgoing calls -->
-    <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS" />
-    
-    <!-- FOREGROUND_SERVICE: For running recording service in foreground -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    
-    <!-- POST_NOTIFICATIONS: For Android 13+ notification permission -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    
-    <!-- Optional: For WhatsApp/VoIP call detection (may need AccessibilityService) -->
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
-    
-    <!-- Required for Android 10+ to access phone state -->
-    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-    
-    <!-- Storage permissions for saving recordings -->
-    <!-- For Android 10+, use scoped storage - no permission needed for app-specific directories -->
-    <!-- For Android < 10, we need WRITE_EXTERNAL_STORAGE -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
-    
-    <!-- For Android 11+ to manage all files access (optional, for broader storage access) -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
-    
-    <!-- For Android 10+ to use foreground service with microphone -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    package="com.odufu.callspy">
 
     <application
         android:allowBackup="true"
@@ -45,63 +8,17 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.CallSpy"
-        tools:targetApi="31">
-        
-        <!-- Request MANAGE_EXTERNAL_STORAGE permission for Android 11+ -->
-        <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-            tools:ignore="ScopedStorage" />
+        android:theme="@style/Theme.CallSpy">
 
-        <!-- Main Activity -->
+        <activity android:name=".MainActivity" />
+        <activity android:name=".SettingsActivity" />
+        <!-- File Manager Activity -->
         <activity
-            android:name=".MainActivity"
+            android:name=".FileManagerActivity"
             android:exported="true"
-            android:theme="@style/Theme.CallSpy">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- Settings Activity -->
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="true"
-            android:label="Settings"
+            android:label="@string/file_manager_title"
             android:theme="@style/Theme.CallSpy" />
-
-        <!-- Call Recording Service -->
-        <service
-            android:name=".service.CallRecordingService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="microphone"
-            android:permission="android.permission.FOREGROUND_SERVICE" />
-
-        <!-- Phone State Receiver for detecting call events -->
-        <receiver
-            android:name=".receiver.PhoneStateReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Accessibility Service for WhatsApp/VoIP call detection -->
-        <service
-            android:name=".service.CallAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true"
-            android:label="@string/accessibility_service_name"
-            android:description="@string/accessibility_service_description">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
+        <service android:name=".CallRecordingService" />
 
     </application>
 
