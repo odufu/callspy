@@ -1,6 +1,7 @@
 package com.example.callspy
 
 import android.content.Intent
+import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Environment
@@ -16,7 +17,12 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.callspy.utils.KeyStoreManager
 import java.io.File
+import java.io.FileOutputStream
+import javax.crypto.Cipher
+import javax.crypto.CipherInputStream
+import javax.crypto.spec.IvParameterSpec
 import kotlin.concurrent.thread
 
 class FileManagerActivity : AppCompatActivity() {
@@ -32,9 +38,7 @@ class FileManagerActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "FileManagerActivity"
-        private const val ENCRYPTION_ALGORITHM = "AES/CBC/PKCS5Padding"
-        private const val KEY_ALGORITHM = "AES"
-        private const val KEY_SIZE = 256
+        private const val IV_SIZE = 16  // AES IV size (16 bytes)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -145,23 +149,59 @@ class FileManagerActivity : AppCompatActivity() {
     }
     
     private fun getAudioDuration(file: File): Long? {
-        // For encrypted files, we can't get duration without decrypting first
-        // Return null for now, we'll implement proper duration extraction later
-        return null
+        return try {
+            // Decrypt the file temporarily to get duration
+            val decryptedFile = decryptFile(file)
+            if (decryptedFile == null) {
+                Log.w(TAG, "Failed to decrypt file for duration extraction: ${file.name}")
+                return null
+            }
+            
+            MediaMetadataRetriever().use { retriever ->
+                retriever.setDataSource(decryptedFile.absolutePath)
+                val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                durationStr?.toLongOrNull()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting audio duration: ${e.message}", e)
+            null
+        }
     }
     
     private fun decryptFile(encryptedFile: File): File? {
         return try {
-            // TODO: Use the same encryption key as CallRecordingService
-            // For now, create a dummy decryption - in real implementation, we need to store the key
-            val tempFile = File.createTempFile("decrypted_", ".mp4", cacheDir)
-            tempFile.deleteOnExit()
+            // Get encryption key from KeyStoreManager
+            val encryptionKey = KeyStoreManager.getOrCreateEncryptionKey()
             
-            // Simplified decryption - in real app, we need to use the same key and IV
-            // For now, just copy the file (placeholder)
-            encryptedFile.copyTo(tempFile, overwrite = true)
-            
-            tempFile
+            // Read IV from the beginning of the encrypted file (first 16 bytes)
+            encryptedFile.inputStream().use { inputStream ->
+                // Read IV (first 16 bytes)
+                val ivBytes = ByteArray(IV_SIZE)
+                val bytesRead = inputStream.read(ivBytes)
+                if (bytesRead != IV_SIZE) {
+                    Log.e(TAG, "Failed to read IV from encrypted file: expected $IV_SIZE bytes, got $bytesRead")
+                    return null
+                }
+                
+                val ivSpec = IvParameterSpec(ivBytes)
+                
+                // Create cipher for decryption
+                val cipher = Cipher.getInstance(KeyStoreManager.getEncryptionAlgorithm())
+                cipher.init(Cipher.DECRYPT_MODE, encryptionKey, ivSpec)
+                
+                // Create temporary file for decrypted content
+                val tempFile = File.createTempFile("decrypted_", ".mp4", cacheDir)
+                tempFile.deleteOnExit()
+                
+                // Decrypt the rest of the file
+                FileOutputStream(tempFile).use { outputStream ->
+                    CipherInputStream(inputStream, cipher).use { cipherInputStream ->
+                        cipherInputStream.copyTo(outputStream)
+                    }
+                }
+                
+                tempFile
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Decryption failed: ${e.message}", e)
             null
@@ -343,7 +383,9 @@ class FileManagerActivity : AppCompatActivity() {
             holder.numberTextView.text = getString(R.string.recording_number, recording.phoneNumber)
             
             val durationStr = recording.duration?.let { 
-                "${it / 1000 / 60}:${(it / 1000) % 60}"
+                val minutes = it / 1000 / 60
+                val seconds = (it / 1000) % 60
+                String.format("%d:%02d", minutes, seconds)
             } ?: "Unknown"
             holder.durationTextView.text = getString(R.string.recording_duration, durationStr)
             
