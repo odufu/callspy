@@ -2,6 +2,7 @@ package com.example.callspy.service
 
 import android.util.Log
 import com.example.callspy.keystore.KeyStoreManager
+import com.example.callspy.utils.ErrorHandler
 import java.io.File
 import java.io.FileOutputStream
 import javax.crypto.Cipher
@@ -17,20 +18,20 @@ class CallRecordingService {
                 // Get encryption key from KeyStoreManager
                 val encryptionKey = KeyStoreManager.getOrCreateEncryptionKey()
                 val cipher = Cipher.getInstance(KeyStoreManager.getEncryptionAlgorithm())
-                
+
                 // Ensure ivSpec is not null
                 if (ivSpec == null) {
-                    Log.e(TAG, "IV not initialized for encryption")
+                    ErrorHandler.handleEncryptionError(null, "IV not initialized for encryption")
                     return false
                 }
-                
+
                 cipher.init(Cipher.ENCRYPT_MODE, encryptionKey, ivSpec)
 
                 File(inputPath).inputStream().use { inputStream ->
                     FileOutputStream(outputPath).use { fileOut ->
                         // Write IV bytes first (16 bytes for AES)
                         fileOut.write(ivSpec!!.iv)
-                        
+
                         CipherOutputStream(fileOut, cipher).use { cipherOut ->
                             val buffer = ByteArray(1024)
                             var bytesRead: Int
@@ -42,7 +43,7 @@ class CallRecordingService {
                 }
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Encryption failed: ${e.message}", e)
+                ErrorHandler.handleEncryptionError(null, "Encryption failed: ${e.message}")
                 false
             }
         }
