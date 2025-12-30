@@ -7,6 +7,7 @@ import android.os.Build
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.example.callspy.utils.ErrorHandler
 
 class CallAccessibilityService : AccessibilityService() {
 
@@ -152,12 +153,11 @@ class CallAccessibilityService : AccessibilityService() {
             startForegroundService(serviceIntent)
             Log.d(TAG, "Started CallRecordingService via accessibility service")
         } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException starting recording: ${e.message}")
-            Log.e(TAG, "Make sure app has FOREGROUND_SERVICE permission")
+            ErrorHandler.handlePermissionError(this, TAG, "SecurityException starting recording: ${e.message}", e)
         } catch (e: IllegalStateException) {
-            Log.e(TAG, "IllegalStateException starting recording: ${e.message}")
+            ErrorHandler.handleRecordingError(this, TAG, "IllegalStateException starting recording: ${e.message}", e)
         } catch (e: Exception) {
-            Log.e(TAG, "Exception starting recording: ${e.message}")
+            ErrorHandler.handleRecordingError(this, TAG, "Exception starting recording: ${e.message}", e)
         }
     }
 }
